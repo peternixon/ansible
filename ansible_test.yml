@@ -1,0 +1,67 @@
+# ansible__vmail_test.yml - N.J.Holmes April 2018
+#
+#
+# version 1.0   - April 2018
+#
+---
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+    date1: "{{ lookup('pipe', 'date +%Y_%m') }}"
+    date2: "{{ lookup('pipe', 'date +%d') }}"
+    date3: "{{ lookup('pipe', 'date +%H') }}"
+    date4: "{{ lookup('pipe', 'date +%Y_%m/%d/%H') }}"
+
+  tasks:
+
+    - debug: var=date
+    - debug: var=date1
+    - debug: var=date2
+    - debug: var=date3
+    - debug: var=date4
+
+#     # 1. Get list of currently installed glibc rpms
+#    - name: List currently installed versions of glibc
+#      shell: /bin/rpm -qa | grep glibc
+#      register: result
+#      ignore_errors: True
+
+#    - debug: var=result.stdout_lines
+
+
+#    #2. Get list of the new rpms to send to yum to install
+#    - name: List of rpms to send to yum update
+#      shell: /bin/ls -d1 /data/GLIBC/*
+#      register: result
+#      ignore_errors: True
+
+#    - debug: var=result.stdout_lines
+
+#    - set_fact: rpm_list="{{ result.stdout_lines }}"
+
+
+#    - name: Find all rpm files in /tmp folder
+#      find:
+#        paths: "/tmp"
+#        pattern: "*.rpm"
+#      register: rpm_files
+
+    #- debug: var=rpm_files
+
+    #- debug: var=rpm_files.files
+
+#    - set_fact: rpm_list="{{rpm_files.files|join(', ', attribute='path')}}"
+#    - debug: var=rpm_list
+
+#    - debug: msg={{ rpm_files.files | map(attribute='path') | list }}
+#    - debug: msg={{ rpm_files.files | map(attribute='path') | list | upper }}
+    #- debug: msg="{{ ansible_eth0 }}"
+    #- debug: msg="Address':'  {{ ansible_eth0.ipv4.address }}"
+    #- debug: msg="Broadcast':'  {{ ansible_eth0.ipv4.broadcast }}"
+    #- debug: msg="Netmask':'  {{ ansible_eth0.ipv4.netmask }}"
+    #- debug: msg="Network':'  {{ ansible_eth0.ipv4.network }}"
+

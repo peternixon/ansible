@@ -1,0 +1,58 @@
+# ansible_SPLUNK_vm_mmsc.yml - N.J.Holmes November 2018
+#
+# Install splunk forwarders on all MMSC Nodes
+#
+# version 1.0   - 01-Nov-2018
+#
+---
+- hosts: 10.34.209.72
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+  # 1. Create kit directory
+    - name: Create /data/SPLUNK/ directory
+      file: path=/data/SPLUNK/
+            owner=root
+            group=root
+            mode=0755
+            state=directory
+
+    # 2. Copy across splunk forwarder kit
+    - name: Copy kits to node
+      copy: src={{ item }} dest=/data/SPLUNK/ owner=root group=root mode=0755
+      with_items:
+        - /data/splunk/splunkforwarder-7.1.3-51d9cac7b837-Linux-x86_64.tgz
+            
+    # 3. Copy across splunk tar file and unbundle 
+    - name: Unarchive splunk tar kit on remote server
+      unarchive: src=/data/splunk/splunkforwarder-7.1.3-51d9cac7b837-Linux-x86_64.tgz
+            dest=/opt/
+            
+
+    # 4. Run splunk startup with required options
+    - name: Run splunk startup with required options
+      command: /opt/splunkforwarder/bin/splunk start --accept-license --answer-yes --auto-ports --no-prompt
+
+      
+    # 5. Run splunk startup with required options
+    - name: Enable splunk startup on boot
+      command: /opt/splunkforwarder/bin/splunk enable boot-start
+
+      
+    # 6. Archive the /opt/splunkforwarder/etc/system/local/outputs.conf
+    - name: Archive a copy of /opt/splunkforwarder/etc/system/local/outputs.conf
+      command: cp /opt/splunkforwarder/etc/system/local/outputs.conf /opt/splunkforwarder/etc/system/local/outputs.conf."{{date}}" 
+      ignore_errors: yes
+
+      
+    # 7. Copy in new /opt/splunkforwarder/etc/system/local/outputs.conf
+    - name: Copy in new /opt/splunkforwarder/etc/system/local/outputs.conf
+      copy: src={{ item }} dest=/opt/splunkforwarder/etc/system/local/outputs.conf owner=root group=root mode=0755
+      with_items:
+        - /data/splunk/outputs.conf_ml

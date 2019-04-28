@@ -1,0 +1,81 @@
+# ansible__vmail_mrf_glibc.yml - N.J.Holmes April 2018
+#
+# Update GLIBC from 2.12.1-107 to 2.12.1-132 on voicemail MRF's ONLY!
+# its a pre-requisite for A/D deployment
+#
+# version 1.0   - April 2018
+#
+---
+- hosts:  VMAIL_NN_MSIS_ML
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+  # 1. Create kit directory
+    - name: Create /data/GLIBC/ directory
+      file: path=/data/GLIBC/
+            owner=root
+            group=root
+            mode=0755
+            state=directory
+
+    # 2. Copy across glibc rpms
+    - name: Copy kits to node
+      copy: src={{ item }} dest=/data/GLIBC/ owner=root group=root mode=0755
+      with_items:
+        - /data/AD_LDAP/glibc-2.12-1.132.el6.i686.rpm
+        - /data/AD_LDAP/glibc-2.12-1.132.el6.x86_64.rpm
+        - /data/AD_LDAP/glibc-common-2.12-1.132.el6.x86_64.rpm
+        - /data/AD_LDAP/glibc-devel-2.12-1.132.el6.x86_64.rpm
+        - /data/AD_LDAP/glibc-headers-2.12-1.132.el6.x86_64.rpm
+ 
+
+    # 3. Get list of currently installed glibc rpms
+    - name: List currently installed versions of glibc
+      shell: /bin/rpm -qa | grep glibc
+      register: result
+      ignore_errors: True
+
+    - debug: var=result.stdout_lines
+
+
+    #4. Get list of the new rpms to send to yum to install
+    - name: List of rpms to send to yum update
+      shell: /bin/ls -d1 /data/GLIBC/*
+      register: result
+      ignore_errors: True
+
+    - debug: var=result.stdout_lines
+
+    - set_fact: rpm_list="{{ result.stdout_lines }}"
+
+
+
+    # 5. Install all the glibc files through yum
+    - name: install glibc-2.12-1.132 rpms
+      yum:
+            name: "{{rpm_list}}"
+            state: latest 
+            disablerepo: "*"
+      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MSIS_ML'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_EK_MSIS_ML'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_EK_MIGR_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MIGR_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MIGR_PR'] )
+
+    - debug: var=result.stdout_lines
+
+    # 6. Get new list of currently installed glibc rpms
+    - name: List final version of glibc now installed
+      shell: /bin/rpm -qa | grep glibc
+      register: result
+      ignore_errors: True
+
+    - debug: var=result.stdout_lines
+
+

@@ -1,0 +1,25 @@
+# ansible_test_vault.yml - N.J.Holmes May 2018
+#
+---
+- hosts:  VMAIL_EK_MIGR_ML
+#- hosts:  MMSC_EK_MIGR_ML
+
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+    - name: Archive a copy of /etc/nslcd.conf
+      command: cp /etc/nslcd.conf /etc/nslcd.conf.orig."{{date}}"
+    
+    - name: Use template with jinja2 to create new /etc/nslcd.conf
+      template:
+        src: /data/AD_LDAP/nslcd.j2
+        dest: /data/ansible/playbooks/nslcd.conf
+        mode: 0755
+
+        

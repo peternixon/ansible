@@ -1,0 +1,223 @@
+# ansible_AD_vm_mmsc.yml - N.J.Holmes November 2017
+#
+# deploy Active Directory on MMSC and VMAIL nodes
+#
+# version 1.0
+# version 1.1   - March 2018    - Fixed some logic for openldap-clients,
+#                                 Added logic test for NSCD
+# version 1.2   - April 2018    - Added logic test for pam_ldap-185.11 as already exists on Prod MMSC mStores NN 
+# version 1.3   - May 2018      - Added logic to exclude openldap-clients rpm for VMAIL migration nodes (10.34.209.59,  10.34.17.59, 10.34.209.115, 10.34.17.115)
+#                               - and VMAIL MSIS nodes (10.34.209.72,  10.34.17.72, 10.34.209.114, 10.34.17.114)
+# version 1.4   - June 2018     - Added extra logic for MMSC NN LI node as openldap-clients-2.4.40-6 is already present so not required to install any version                         - 
+#
+---
+- hosts:  VMAIL_NN_MIGR_ML
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+  # 1. Create kit directory
+    - name: Create LDAP kit directory
+      file: path=/data/AD_LDAP/
+            owner=root
+            group=root
+            mode=0755
+            state=directory
+
+    # 2. Copy across oddjob tar file and unbundle 
+    - name: Unarchive mavenir ldap tar kit on remote server
+      unarchive: src=/data/AD_LDAP/oddjob.x86_64.tar
+            dest=/data/AD_LDAP/
+            
+    # 3. Copy across other rpms
+    - name: Copy kits to node
+      copy: src={{ item }} dest={{ item }} owner=root group=root mode=0755
+      with_items:
+        - /data/AD_LDAP/nscd-2.12-1.132.el6.x86_64.rpm
+        - /data/AD_LDAP/nss-pam-ldapd-0.7.5-14.el6.x86_64.rpm
+        - /data/AD_LDAP/openldap-clients-2.4.23-26.el6_3.2.x86_64.rpm
+        - /data/AD_LDAP/pam_krb5-2.3.11-9.el6.x86_64.rpm
+        - /data/AD_LDAP/pam_ldap-185-11.el6.x86_64.rpm
+        - /data/AD_LDAP/openldap-clients-2.4.23-31.el6.x86_64.rpm
+        - /data/AD_LDAP/nscd-2.12-1.149.el6.x86_64.rpm
+    
+    
+    # 4. Install all the rpms - NOTE this uses a custom module /data/ansible/playbooks/library/rpm.py as 'yum' not installed on mavenir platforms
+    - name: install openldap-clients-2.4.23-26.el6_3.2.x86_64.rpm on all servers EXCEPT VMAIL mStores and VMAIL MRFs
+      rpm:
+            file: "{{ item }}"
+            state: present
+      with_items:
+        - /data/AD_LDAP/openldap-clients-2.4.23-26.el6_3.2.x86_64.rpm
+      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MRF_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MRF_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MSTORE_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MSTORE_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MIGR_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MIGR_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MSIS_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MSIS_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MRF_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MRF_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MSTORE_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MSTORE_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MIGR_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MIGR_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MSIS_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MSIS_PR'] or
+              'MMSC_ALL_Nodes_ML' in group_names and inventory_hostname not in groups['MMSC_NN_LI_ML'] or
+              'MMSC_ALL_Nodes_PR' in group_names )
+
+
+    - name: install openldap-clients-2.4.23-31.el6.x86_64.rpm on VMAIL MRFs and VMAIL MSIS nodes only
+      rpm:
+            file: "{{ item }}"
+            state: present
+      with_items:
+        - /data/AD_LDAP/openldap-clients-2.4.23-31.el6.x86_64.rpm
+      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MRF_ML'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_EK_MRF_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MRF_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MRF_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MSIS_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MSIS_PR'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MSIS_ML'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_EK_MSIS_ML'] )
+
+              
+    - name: install pam-ldap rpm
+      rpm:
+            file: /data/AD_LDAP/pam_ldap-185-11.el6.x86_64.rpm
+            state: present
+      when: ( 'MMSC_ALL_Nodes_PR' in group_names and inventory_hostname not in groups['MMSC_NN_MSTORE_PR'] or
+              'MMSC_ALL_Nodes_ML' in group_names or
+              'VMAIL_ALL_ML' in group_names or
+              'VMAIL_ALL_PR' in group_names )
+
+
+    - name: install nscd rpm (Not on model NN MMSC LI or prod EK MMSC mReport or prod VMAIL MSIS or model VMAIL MIGR)
+      rpm:
+            file: /data/AD_LDAP/nscd-2.12-1.132.el6.x86_64.rpm
+            state: present
+      when: ( 'MMSC_ALL_Nodes_PR' in group_names and inventory_hostname not in groups['MMSC_EK_MRP_PR'] or
+              'MMSC_ALL_Nodes_ML' in group_names and inventory_hostname not in groups['MMSC_NN_LI_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MSIS_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MSIS_PR'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MIGR_ML'] )
+
+
+    - name: install nscd rpm (On prod VMAIL MSIS and model VMAIL NN MIGR only)
+      rpm:
+            file: /data/AD_LDAP/nscd-2.12-1.149.el6.x86_64.rpm
+            state: present
+      when: ( 'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MSIS_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MSIS_PR'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MIGR_ML'] )
+
+    - name: install other rpms
+      rpm:
+            file: "{{ item }}"
+            state: present
+      with_items:
+        - /data/AD_LDAP/nss-pam-ldapd-0.7.5-14.el6.x86_64.rpm
+        - /data/AD_LDAP/pam_krb5-2.3.11-9.el6.x86_64.rpm
+        - /data/AD_LDAP/oddjob.x86_64/oddjob-0.30-5.el6.x86_64.rpm
+        - /data/AD_LDAP/oddjob.x86_64/oddjob-mkhomedir-0.30-5.el6.x86_64.rpm
+
+
+        
+    # 5. Turn on oddjob service
+    - name: Turn on oddjobd service
+      service:
+            name: oddjobd
+            enabled: yes
+ 
+    # 6. Update /etc/hosts with AD servers
+    - name: Archive a copy of /etc/hosts
+      command: cp /etc/hosts /etc/hosts.orig."{{date}}"
+      
+    - name: Update /etc/hosts with AD details
+      shell: |
+            /bin/echo "# VHA LDAP Servers" >> /etc/hosts
+            /bin/echo "10.39.160.10    vvswm0022.vha.internal" >> /etc/hosts
+            /bin/echo "10.39.160.11    vvswm0023.vha.internal" >> /etc/hosts
+            /bin/echo "10.37.160.10    vvswm0312.vha.internal" >> /etc/hosts
+            /bin/echo "10.37.160.11    vvswm0313.vha.internal" >> /etc/hosts
+
+    # 7. Run authconfig to set up config files
+    - name: Run authconfig to set up LDAP connections
+      command: authconfig --disableldaptls --enableldap --enableldapauth --enablemkhomedir --enablekrb5 --ldapserver=vvswm0022.vha.internal,vvswm0023.vha.internal,vvswm0312.vha.internal,vvswm0313.vha.internal --ldapbasedn="dc=VHA,dc=internal" --enablelocauthorize --update
+      
+    # 8. Update /etc/nslcd.conf
+    - name: Archive a copy of /etc/nslcd.conf
+      command: cp /etc/nslcd.conf /etc/nslcd.conf.orig."{{date}}"
+    
+    - name: Use template with jinja2 to create new /etc/nslcd.conf
+      template:
+        src: /data/AD_LDAP/nslcd.j2
+        dest: /etc/nslcd.conf
+        mode: 0755
+
+    
+    # 9. Update /etc/krb5.conf
+    - name: Archive a copy of /etc/krb5.conf
+      command: cp /etc/krb5.conf /etc/krb5.conf.orig."{{date}}"
+        
+    - name: Copy new /etc/krb5.conf to node
+      copy: src=/data/AD_LDAP/krb5.conf dest=/etc/krb5.conf owner=root group=root mode=0755       
+        
+    # 10. Restart the nslcd service
+    - name: restart nslcd
+      service:
+            name: nslcd
+            state: restarted 
+            
+    ## 11. Turn off LDAP AD checking
+    #- name: Run authconfig to turn off up LDAP authentication as will hang system after adding routes
+    #  command: authconfig --disableldaptls --disableldap --disableldapauth  --updateall
+        
+    # 12. Update the routing tables for O&M interfaces - for MMSC nodes only
+    - name: Make a copy of routing file for O/M interfaces - for MMSC only - {{ device }}
+      command: cp /etc/sysconfig/network-scripts/route-{{ device }} /etc/sysconfig/network-scripts/route-{{ device }}.{{date}}
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+
+    - name: Add the static routing table for O/M interfaces - for MMSC only - {{ device }} (comment)
+      shell: /bin/echo "# Active Directory LDAP" >> /etc/sysconfig/network-scripts/route-{{ device }}
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+
+    - name: Add the static routing table for O/M interfaces - for MMSC only - {{ device }} (routes)
+      shell: /bin/echo "{{ item }} via 10.34.{{ subnet }}.1 dev {{ device}} " >> /etc/sysconfig/network-scripts/route-{{ device }}
+      with_items:
+        - 10.37.160.10
+        - 10.37.160.11
+        - 10.39.160.10
+        - 10.39.160.11
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+
+    - name: Update the dynamic routing table for O/M interfaces - for MMSC only {{ device }}
+      command: /sbin/route add -host {{ item }} gw 10.34.{{ subnet }}.1 {{ device }}
+      with_items:
+        - 10.37.160.10
+        - 10.37.160.11
+        - 10.39.160.10
+        - 10.39.160.11
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+
+        

@@ -1,0 +1,51 @@
+# ansible__test2.yml - N.J.Holmes April 2018
+#
+#
+# version 1.0   - April 2018
+#
+# tests custom module route_dynamic
+---
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+    - name: use custom module route_dynamic to add a network
+      route_dynamic:
+        rou_typ: net
+        host: 10.249.34.16
+        netmask: 255.255.255.240
+        gw: 10.247.214.1
+        dev: eth2
+        state: absent
+        #state: present
+      register: result
+      ignore_errors: True
+
+    - debug: var=result.msg
+    
+
+    #- name: Rolling dice
+    #  dice:
+    #   guess_number: 3
+    #   number_of_roll: 3
+    #  register: result
+ 
+    #- debug: var=result
+
+    #- name: use custom module route_dynamic to add a host
+    #  route_dynamic:
+    #    rou_typ: host
+    #    host: 10.249.44.26
+    #    gw: 10.247.214.1
+    #    dev: eth2
+    #    state: present
+
+
+
+

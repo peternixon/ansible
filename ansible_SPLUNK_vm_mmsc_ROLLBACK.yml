@@ -1,0 +1,25 @@
+# ansible_SPLUNK_vm_mmsc_ROLLBACK.yml - N.J.Holmes November 2018
+#
+# Rollback splunk forwarders install on all MMSC Nodes
+#
+# version 1.0   - 01-Nov-2018
+#
+---
+- hosts: 10.34.209.72
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+      
+    # 1. Run splunk startup with required options
+    - name: Disable splunk startup on boot
+      command: /opt/splunkforwarder/bin/splunk disable boot-start
+
+    # 2. Stop splunk
+    - name: Stop splunk
+      command: /opt/splunkforwarder/bin/splunk stop

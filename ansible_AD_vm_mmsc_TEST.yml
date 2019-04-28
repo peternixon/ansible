@@ -1,0 +1,131 @@
+# ansible_AD_vm_mmsc_TEST.yml - N.J.Holmes March 2018
+#
+# deploy Active Directory on MMSC and VMAIL nodes
+#
+# version 1.0   - March 2018    - Initial version
+#
+#
+---
+- hosts:  MMSC_EK_Nodes_ML
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+    # 1. Check kit directory and contents
+    - name: Check LDAP kit directory and its contents
+      command: "ls -lrth /data/AD_LDAP"
+      ignore_errors: yes
+
+    # 2. check rpm openldap-clients-2.4.23-26.el6_3.2.x86_64.rpm
+    - name: check rpm openldap-clients-2.4.23-26.el6_3.2.x86_64.rpm on all servers EXCEPT VMAIL mStores and VMAIL MRFs
+      shell: "rpm -qa | grep {{ item }} "
+      with_items:
+        - openldap-clients-2.4.23-26.el6_3.2.x86_64
+      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MRF_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MRF_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MSTORE_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MSTORE_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MRF_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MRF_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MSTORE_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MSTORE_PR'] or
+              'MMSC_ALL_Nodes_ML' in group_names or
+              'MMSC_ALL_Nodes_PR' in group_names )
+      ignore_errors: yes
+
+    # 3. check rpm openldap-clients-2.4.23-31.el6.x86_64.rpm
+    - name: check rpm openldap-clients-2.4.23-31.el6.x86_64.rpm on VMAIL MRFs only
+      shell: "rpm -qa | grep {{ item }} "
+      with_items:
+        - /data/AD_LDAP/openldap-clients-2.4.23-31.el6.x86_64.rpm
+      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MRF_ML'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_EK_MRF_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MRF_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MRF_PR'] )
+      ignore_errors: yes
+
+    # 4. check rpm pam_ldap-185-11.el6.x86_64.rpm          
+    - name: check rpm pam_ldap-185-11.el6.x86_64.rpm
+      shell: "rpm -qa | grep pam_ldap-185-11.el6.x86_64 "
+      ignore_errors: yes
+
+    # 5. check rpm nscd-2.12-1.132.el6.x86_64.rpm
+    - name: check rpm nscd-2.12-1.132.el6.x86_64.rpm (Not on model NN MMSC LI or prod EK MMSC mReport)
+      shell: "rpm -qa | grep nscd-2.12-1.132.el6.x86_64 "
+      when: ( 'MMSC_ALL_Nodes_PR' in group_names and inventory_hostname not in groups['MMSC_EK_MRP_PR'] or
+              'MMSC_ALL_Nodes_ML' in group_names and inventory_hostname not in groups['MMSC_NN_LI_ML'] or
+              'VMAIL_ALL_ML' in group_names or
+              'VMAIL_ALL_PR' in group_names )
+      ignore_errors: yes
+
+
+    # 6. check rpm nss-pam-ldapd-0.7.5-14.el6.x86_64.rpm
+    - name: check rpm nss-pam-ldapd-0.7.5-14.el6.x86_64.rpm (Not on model NN MMSC LI or prod EK MMSC mReport)
+      shell: "rpm -qa | grep nss-pam-ldapd-0.7.5-14.el6.x86_64 "
+      ignore_errors: yes
+     
+     
+    # 7. check rpm pam_krb5-2.3.11-9.el6.x86_64.rpm
+    - name: check rpm pam_krb5-2.3.11-9.el6.x86_64.rpm
+      shell: "rpm -qa | grep pam_krb5-2.3.11-9.el6.x86_64 "  
+      ignore_errors: yes
+      
+      
+    # 7. check rpm oddjob-0.30-5.el6.x86_64.rpm
+    - name: check rpm oddjob-0.30-5.el6.x86_64.rpm
+      shell: "rpm -qa | grep oddjob-0.30-5.el6.x86_64 "
+      ignore_errors: yes
+
+    # 8. check rpm oddjob-mkhomedir-0.30-5.el6.x86_64.rpm
+    - name: check rpm oddjob-mkhomedir-0.30-5.el6.x86_64.rpm
+      shell: "rpm -qa | grep  oddjob-mkhomedir-0.30-5.el6.x86_64 "
+      ignore_errors: yes
+    
+        
+    # 9. Check oddjob service
+    - name: Check oddjobd service
+      shell: "chkconfig --list | grep oddjobd"
+      ignore_errors: yes
+ 
+    # 10. Check /etc/hosts for AD servers
+    - name: Check /etc/hosts for AD details
+      shell: " egrep '10.39.160|10.37.160' /etc/hosts"
+      ignore_errors: yes
+
+    # 11. Run authconfig to check if LDAP configured
+    - name: Run authconfig to check if LDAP configured
+      shell: authconfig --test | grep 'vvswm0022.vha.internal'
+      ignore_errors: yes
+      
+     
+    # 12. check nslcd service
+    - name: check nslcd service
+      shell: "chkconfig --list | grep nslcd"
+      ignore_errors: yes
+            
+        
+    # 13. Check routing file for O&M interfaces - for MMSC nodes only
+    - name: Check routing file for O/M interfaces - for MMSC only - {{ device }}
+      shell: egrep '10.37.160|10.39.160' /etc/sysconfig/network-scripts/route-{{ device }}
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+      ignore_errors: yes
+
+    
+
+    # 14. Check dynamic routing tables for O&M interfaces - for MMSC nodes only
+    - name: check the dynamic routing table for O/M interfaces - for MMSC only {{ device }}
+      shell:  "netstat -rn | egrep '10.37.160|10.39.160'"
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+      ignore_errors: yes
+        

@@ -1,0 +1,21 @@
+# ansible_ssh_keys.yml - N.J.Holmes February 2018
+#
+# deploy routing for splunk and test connectivity
+#
+# version 1.0
+#
+---
+- hosts:  MMSC_EK_MMSC_ML
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+
+  tasks:
+        
+    # Copy across ssh key to allow ansible to work in a passwordless mode
+    - name: Copy across ssh key to allow ansible to work in a passwordless mode
+      command: /usr/bin/ssh-copy-id root@{{ inventory_hostname  }}

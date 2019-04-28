@@ -1,0 +1,139 @@
+---
+- hosts:  VMAIL_EK_RMS_ML
+  remote_user: root
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+  # 1. Create kist directory
+    - name: Create LDAP kit directory
+      file: path=/data/kit/ldap/
+            owner=root
+            group=root
+            mode=0755
+            state=directory
+
+    # 2. Copy across oddjob tar file and unbundle 
+    - name: Unarchive mavenir ldap tar kit on remote server
+      unarchive: src=/data/kit/ldap/oddjob.x86_64.tar
+            dest=/data/kit/ldap/
+            
+    # 3. Copy across other rpms
+    - name: Copy kits to node
+      copy: src={{ item }} dest={{ item }} owner=root group=root mode=0755
+      with_items:
+        - /data/AD_LDAP/nscd-2.12-1.132.el6.x86_64.rpm
+        - /data/AD_LDAP/nss-pam-ldapd-0.7.5-14.el6.x86_64.rpm
+        - /data/AD_LDAP/openldap-clients-2.4.23-26.el6_3.2.x86_64.rpm
+        - /data/AD_LDAP/pam_krb5-2.3.11-9.el6.x86_64.rpm
+        - /data/AD_LDAP/pam_ldap-185-11.el6.x86_64.rpm
+    
+    # 4. Remove sssd packages if they exist       
+    - name: remove sssd packages
+      yum:
+            name: {{ item }}
+            state: absent
+      with_items:
+        - sssd-1.13.3-22.el6_8.4.x86_64
+        - sssd-common-1.13.3-22.el6_8.4.x86_64
+        - sssd-client-1.13.3-22.el6_8.4.x86_64
+    
+    # 5. Install all the rpms
+    - name: install rpms
+      yum:
+            name: {{ item }}
+            state: present
+      with_items:
+        - /data/AD_LDAP/nscd-2.12-1.132.el6.x86_64.rpm
+        - /data/AD_LDAP/nss-pam-ldapd-0.7.5-14.el6.x86_64.rpm
+        - /data/AD_LDAP/openldap-clients-2.4.23-26.el6_3.2.x86_64.rpm
+        - /data/AD_LDAP/pam_krb5-2.3.11-9.el6.x86_64.rpm
+        - /data/AD_LDAP/pam_ldap-185-11.el6.x86_64.rpm
+        - /data/AD_LDAP/oddjob.x86_64/oddjob-0.30-5.el6.x86_64.rpm
+        - /data/AD_LDAP/oddjob.x86_64/oddjob-mkhomedir-0.30-5.el6.x86_64.rpm
+        
+    # 6. Turn on oddjob service
+    - name: Turn on oddjobd service
+      service:
+            name: oddjobd
+            enabled: yes
+ 
+    # 7. Update /etc/hosts with AD servers
+    - name: Archive a copy of /etc/hosts
+      command: cp /etc/hosts /etc/hosts.orig."{{date}}"
+      
+    - name: Update /etc/hosts with AD details
+      shell: |
+            /bin/echo "# VHA LDAP Servers" >> /etc/hosts
+            /bin/echo "10.39.160.10    vvswm0022.vha.internal" >> /etc/hosts
+            /bin/echo "10.39.160.11    vvswm0022.vha.internal" >> /etc/hosts
+            /bin/echo "10.37.160.10    vvswm0312.vha.internal" >> /etc/hosts
+            /bin/echo "10.37.160.11    vvswm0313.vha.internal" >> /etc/hosts
+
+    # 8. Run authconfig to set up config files
+    - name: Run authconfig to set up LDAP connections
+      command: authconfig --disableldaptls --enableldap --enableldapauth --enablemkhomedir --enablekrb5 --ldapserver=vvswm0022.vha.internal,vvswm0023.vha.internal,vvswm0312.vha.internal,vvswm0313.vha.internal --ldapbasedn="dc=VHA,dc=internal" --update
+      
+    # 9. Update /etc/nslcd.conf
+    - name: Archive a copy of /etc/nslcd.conf
+      command: cp /etc/nslcd.conf /etc/nslcd.conf.orig."{{date}}"
+        
+    - name: Copy new nslcd.conf to node
+      copy: src=/data/AD_LDAP/nslcd.conf dest=/etc/nslcd.conf owner=root group=root mode=0755    
+        
+    # 10. Update /etc/krb5.conf
+    - name: Archive a copy of /etc/krb5.conf
+      command: cp /etc/krb5.conf /etc/krb5.conf.orig."{{date}}"
+        
+    - name: Copy new /etc/krb5.conf to node
+      copy: src=/data/AD_LDAP/krb5.conf dest=/etc/krb5.conf owner=root group=root mode=0755       
+        
+    # 11. Restart the nslcd service
+     - name: restart nslcd
+       service:
+            name: nslcd
+            state: restarted 
+        
+    # 12. Update the routing tables for O&M interfaces - for MMSC nodes only
+    - name: Update the dynamic routing table for O/M interfaces - for MMSC only {{ device }}
+      command: /sbin/route add -host {{ item }} gw 10.34.{{ subnet }}.1 {{ device }}
+      with_items:
+        - 10.37.160.10
+        - 10.37.160.11
+        - 10.39.160.10
+        - 10.39.160.11
+      when: (inventory_hostname in groups['MMSC_EK_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_EK_MMSC_PR']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_PR'])
+
+    - name: Make a copy of routing file for O/M interfaces - for MMSC only - {{ device }}
+      command: cp /etc/sysconfig/network-scripts/route-{{ device }} /etc/sysconfig/network-scripts/route-{{ device }}.{{date}}
+      when: (inventory_hostname in groups['MMSC_EK_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_EK_MMSC_PR']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_PR'])
+
+    - name: Add the static routing table for O/M interfaces - for MMSC only - {{ device }} (comment)
+      shell: /bin/echo "# Active Directory LDAP" >> /etc/sysconfig/network-scripts/route-{{ device }}
+      when: (inventory_hostname in groups['MMSC_EK_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_EK_MMSC_PR']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_PR'])
+
+    - name: Add the static routing table for O/M interfaces - for MMSC only - {{ device }} (routes)
+      shell: /bin/echo "{{ item }} via 10.34.{{ subnet }}.1 dev {{ device}} " >> /etc/sysconfig/network-scripts/route-{{ device }}
+      with_items:
+        - 10.37.160.10
+        - 10.37.160.11
+        - 10.39.160.10
+        - 11.39.160.11
+      when: (inventory_hostname in groups['MMSC_EK_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_EK_MMSC_PR']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_PR'])
+
+        

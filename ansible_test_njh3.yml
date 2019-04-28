@@ -1,0 +1,47 @@
+---
+- hosts: MMSC_EK_MSTORE_ML
+  gather_facts: False
+  remote_user: root
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+  tasks:
+
+    - name: Update the dynamic routing table for O/M interfaces - for MMSC only {{ device }}
+      command: /sbin/route add -host {{ item }} gw 10.34.{{ subnet }}.1 {{ device }}
+      with_items:
+        - 10.37.160.10
+        - 10.37.160.11
+        - 10.39.160.10
+        - 10.39.160.11
+      when: (inventory_hostname in groups['MMSC_EK_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_EK_MMSC_PR']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_PR'])
+
+    - name: Make a copy of routing file for O/M interfaces - for MMSC only - {{ device }}
+      command: cp /etc/sysconfig/network-scripts/route-{{ device }} /etc/sysconfig/network-scripts/route-{{ device }}.{{date}}
+      when: (inventory_hostname in groups['MMSC_EK_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_EK_MMSC_PR']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_PR'])
+
+    - name: Add the static routing table for O/M interfaces - for MMSC only - {{ device }} (comment)
+      shell: /bin/echo "# Active Directory LDAP" >> /etc/sysconfig/network-scripts/route-{{ device }}
+      when: (inventory_hostname in groups['MMSC_EK_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_EK_MMSC_PR']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_PR'])
+
+    - name: Add the static routing table for O/M interfaces - for MMSC only - {{ device }} (routes)
+      shell: /bin/echo "{{ item }} via 10.34.{{ subnet }}.1 dev {{ device}} " >> /etc/sysconfig/network-scripts/route-{{ device }}
+      with_items:
+        - 10.37.160.10
+        - 10.37.160.11
+        - 10.39.160.10
+        - 11.39.160.11
+      when: (inventory_hostname in groups['MMSC_EK_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_ML']) or
+            (inventory_hostname in groups['MMSC_EK_MMSC_PR']) or
+            (inventory_hostname in groups['MMSC_NN_MMSC_PR'])

@@ -1,0 +1,87 @@
+# ansible_split.yml - N.J.Holmes February 2018
+#
+# deploy routing for splunk and test connectivity
+#
+# version 1.0
+#
+---
+#- hosts:  MMSC_EK_Nodes_ML
+- hosts: VMAIL_EK_ML
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+
+  tasks:
+        
+    # split the inventory_hostname
+#    - debug: msg="System {{ inventory_hostname }}"
+    #- debug: msg={{ hostvars }}
+
+#    - name: my command1
+#      command: echo $hostname
+#     # when: ("'MMSC_EK_MMSC_PR' in group_names")
+#      when: ("'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML']") or
+#            ("'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML']") or
+#            ("'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR']") or
+#            ("'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR']") 
+
+#    - name: my command2
+#      command: echo $hostname
+#      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+#            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+#            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+#            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+ 
+#    - name: my command3 - test OpenLDAP install
+#      command: echo ""
+#      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MRF_ML'] and
+#              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MRF_ML'] and
+#              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MSTORE_ML'] and
+#              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MSTORE_ML'] or
+#              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MRF_PR'] and
+#              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MRF_PR'] and
+#              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MSTORE_PR'] and
+#              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MSTORE_PR'] or
+#               'MMSC_ALL_Nodes_ML' in group_names or
+#               'MMSC_ALL_Nodes_PR' in group_names )
+##              'MMSC_ALL_Nodes_ML' in group_names and inventory_hostname in groups['MMSC_EK_Nodes_ML'] or
+##              'MMSC_ALL_Nodes_ML' in group_names and inventory_hostname in groups['MMSC_NN_Nodes_ML'] or
+##              'MMSC_ALL_Nodes_PR' in group_names and inventory_hostname in groups['MMSC_EK_Nodes_PR'] or
+##              'MMSC_ALL_Nodes_PR' in group_names and inventory_hostname in groups['MMSC_NN_Nodes_PR'] )
+
+#    - name: my command4 - test NSCD install
+#      command: echo ""
+#      when: ( 'MMSC_ALL_Nodes_PR' in group_names and inventory_hostname not in groups['MMSC_EK_MRP_PR'] or
+#              'MMSC_ALL_Nodes_ML' in group_names and inventory_hostname not in groups['MMSC_NN_LI_ML'] or
+#              'VMAIL_ALL_ML' in group_names or
+#              'VMAIL_ALL_PR' in group_names )
+
+
+    - name: my command5 - test pam-ldap install
+      command: echo ""
+      when: ( 'MMSC_ALL_Nodes_PR' in group_names and inventory_hostname not in groups['MMSC_NN_MSTORE_PR'] or
+              'MMSC_ALL_Nodes_ML' in group_names or
+              'VMAIL_ALL_ML' in group_names or
+              'VMAIL_ALL_PR' in group_names )
+
+    - name: check dynamic route
+      route_check: 10.34.209.114
+
+#    - name: my command4
+#      command: echo ""
+#      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MRF_ML'] or
+#              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_EK_MRF_ML'] or
+#              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MRF_PR'] or
+#              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MRF_PR'] )
+
+#    - name: Test template with jinja2 
+#      template:
+#        src: /data/AD_LDAP/nslcd.j2
+#        dest: /etc/nslcd.conf_test
+#        mode: 0755
+
+

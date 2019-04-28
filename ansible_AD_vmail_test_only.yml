@@ -1,0 +1,29 @@
+---
+- hosts:  VMAIL_EK_RMS_ML
+  gather_facts: true
+  remote_user: root
+  vars:
+    host_ip:    "{{ansible_eth[1]['ipv4']}}"
+
+  tasks:
+    - name: Show how debug works
+      debug: msg={{ ansible_distribution }}
+    
+    #- name: show ip address from facts
+    #  debug: msg="IP address:{{ ansible_eth1.ipv4 }}"
+    - debug: msg="IP details:{{ ansible_eth1 }}"
+
+    
+    #- name: Display all variables/facts known for a host
+    #  debug:
+    #    var: "{{ hostvars[inventory_hostname][ansible_eth1]['ipv4']['address'] }}"
+        
+    - debug: var=ansible_distribution
+    
+    - debug: msg="IP details2 {{ ansible_interfaces }}"
+    
+    - debug: var=host_ip
+    
+    - debug: msg="LVM details {{ ansible_lvm.lvs }}"
+    - debug: msg="LVM details2 {{ ansible_lvm.vgs }}"
+    

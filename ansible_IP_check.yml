@@ -1,0 +1,43 @@
+# ansible_IP_check.yml - N.J.Holmes February 2018
+#
+# test IP connectivity for list of IP addresses and ports
+#
+# version 1.0
+#
+---
+- hosts:  MMSC_EK_Nodes_ML
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+    list_ip_addr: [ 10.41.16.148, 10.33.16.24 ]
+    list_ports: [ 8089, 9997, 514 ]
+
+  tasks:
+        
+    # Test the connections
+    - name: Test the connections
+      wait_for: 
+        host={{ item[0] }} 
+        port={{ item[1] }} 
+        timeout=1
+#        #msg="Timeout to IP {{ item[0] }} port {{ item[1] }}" # not available under 2.3 only 2.4 onwards
+      with_nested:
+        - "{{ list_ip_addr }}"
+        - "{{ list_ports }}"
+      ignore_errors: yes
+
+
+    # Test the connections with a custom module
+    - name: Test the connections with custom module can_reach.py
+      can_reach:
+        host={{ item[0] }}
+        port={{ item[1] }}
+        timeout=1
+      with_nested:
+        - "{{ list_ip_addr }}"
+        - "{{ list_ports }}"
+      ignore_errors: yes
+

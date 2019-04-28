@@ -1,0 +1,197 @@
+# ansible_AD_vm_mmsc_ROLLBACK.yml - N.J.Holmes November 2017
+#
+# ROLLBACK of Active Directory on MMSC and VMAIL nodes deployment
+#
+# version 1.0
+#
+---
+- hosts:  MMSC_NN_LI_ML
+  remote_user: root
+  gather_facts: false
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+
+  tasks:
+
+    # 1. Turn off LDAP AD checking
+    - name: Run authconfig to turn off up LDAP authentication
+      command: authconfig --disableldaptls --disableldap --disableldapauth  --updateall
+        
+    # 2. Delete dynamic routes
+    - name: Delete the dynamic routing table for O/M interfaces - for MMSC only {{ device }}
+      command: /sbin/route del -host {{ item }}
+      with_items:
+        - 10.37.160.10
+        - 10.37.160.11
+        - 10.39.160.10
+        - 10.39.160.11
+      ignore_errors: yes
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+
+    # 3. Remove Static routing for O/M interfaces - for MMSC only - {{ device }} (comment)
+    - name: Delete static routing for O/M interfaces - for MMSC only {{ device }} (comment)
+      lineinfile: dest=/etc/sysconfig/network-scripts/route-{{ device }} 
+                regexp='^# Active Directory LDAP'
+                state=absent
+                backup=yes
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+      ignore_errors: yes
+    
+    # 4. Remove Static routing for O/M interfaces - for MMSC only - {{ device }} (routes)
+    - name: Delete static routing for O/M interfaces - for MMSC only {{ device }} (routes)
+      lineinfile: dest=/etc/sysconfig/network-scripts/route-{{ device }} 
+                regexp='^{{ item }} via 10.34.{{ subnet }}.1 dev {{ device}}'
+                state=absent
+      with_items:
+        - 10.37.160.10
+        - 10.37.160.11
+        - 10.39.160.10
+        - 10.39.160.11          
+      when: ( 'MMSC_EK_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_ML'] ) or
+            ( 'MMSC_NN_MMSC_ML' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_ML'] ) or
+            ( 'MMSC_EK_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_EK_MMSC_PR'] ) or
+            ( 'MMSC_NN_MMSC_PR' in group_names and inventory_hostname in groups['MMSC_NN_MMSC_PR'] )
+      ignore_errors: yes   
+ 
+    # 5. Remove AD details from /etc/hosts 
+    - name: Remove AD entries from /etc/hosts
+      lineinfile: dest=/etc/hosts 
+                regexp='^{{ item }}'
+                state=absent
+                backup=yes
+      with_items:
+        - '# VHA LDAP Servers'
+        - '10.39.160.10    vvswm0022.vha.internal'
+        - '10.39.160.11    vvswm0023.vha.internal'
+        - '10.37.160.10    vvswm0312.vha.internal'
+        - '10.37.160.11    vvswm0313.vha.internal'
+      ignore_errors: yes
+
+    # 6. Turn off oddjob service
+    - name: Turn off oddjobd service
+      service:
+            name: oddjobd
+            enabled: no
+      ignore_errors: yes
+
+    # 7. Remove the rpms - NOTE this uses a custom module /data/ansible/playbooks/library/rpm.py as 'yum' not installed on mavenir platforms
+     
+    # oddjob-mkhomedir-0.30-5.el6.x86_64
+    # oddjob-0.30-5.el6.x86_64
+    # pam_krb5-2.3.11-9.el6.x86_64
+    # nss-pam-ldapd-0.7.5-14.el6.x86_64
+    #
+    - name: Remove rpms
+      rpm:
+            name: "{{ item }}"
+            state: removed
+      with_items:
+        - oddjob-mkhomedir-0.30-5.el6.x86_64
+        - oddjob-0.30-5.el6.x86_64
+        - pam_krb5-2.3.11-9.el6.x86_64
+        - nss-pam-ldapd-0.7.5-14.el6.x86_64
+      ignore_errors: yes
+      
+    #
+    # nscd-2.12-1.132.el6.x86_64
+    #
+    - name: remove nscd-2.12-1.132.el6.x86_64 on all servers EXCEPT model NN MMSC LI or prod EK MMSC mReport
+      rpm:
+            name: nscd-2.12-1.132.el6.x86_64
+            state: removed
+      when: ( 'MMSC_ALL_Nodes_PR' in group_names and inventory_hostname not in groups['MMSC_EK_MRP_PR'] or
+              'MMSC_ALL_Nodes_ML' in group_names and inventory_hostname not in groups['MMSC_NN_LI_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MSIS_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MSIS_PR'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MIGR_ML'] )
+      ignore_errors: yes
+
+
+    #
+    # nscd-2.12-1.149.el6_6.9.x86_64
+    #
+    - name: remove nscd rpm (On prod VMAIL MSIS and model VMAIL NN MIGR only)
+      rpm:
+            file: nscd-2.12-1.149.el6.x86_64
+            state: removed
+      when: ( 'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MSIS_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MSIS_PR'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MIGR_ML'] )
+      ignore_errors: yes
+
+
+    #
+    #  pam_ldap-185-11.el6.x86_64
+    #
+    - name: remove pam_ldap-185-11.el6.x86_64
+      rpm:
+            name: pam_ldap-185-11.el6.x86_64
+            state: removed
+      ignore_errors: yes
+
+    
+    #
+    # openldap-clients-2.4.23-26.el6_3.2.x86_64
+    #
+    - name: remove openldap-clients-2.4.23-26.el6_3.2.x86_64.rpm on all servers EXCEPT VMAIL mStores and VMAIL MRFs
+      rpm:
+            name: openldap-clients-2.4.23-26.el6_3.2.x86_64
+            state: removed
+      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MRF_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MRF_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MSTORE_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MSTORE_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MIGR_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MIGR_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MSIS_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MSIS_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MRF_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MRF_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MSTORE_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MSTORE_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MIGR_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MIGR_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MSIS_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MSIS_PR'] or
+              'MMSC_ALL_Nodes_ML' in group_names or
+              'MMSC_ALL_Nodes_PR' in group_names  )
+      ignore_errors: yes
+
+
+    #
+    # openldap-clients-2.4.23-31.el6.x86_64
+    #
+    - name: remove openldap-clients-2.4.23-31.el6.x86_64.rpm on VMAIL MRFs only
+      rpm:
+            name: openldap-clients-2.4.23-31.el6.x86_64
+            state: removed
+      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MRF_ML'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_EK_MRF_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MRF_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MRF_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_NN_MSIS_PR'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname in groups['VMAIL_EK_MSIS_PR'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_NN_MSIS_ML'] or
+              'VMAIL_ALL_ML' in group_names and inventory_hostname in groups['VMAIL_EK_MSIS_ML'] )
+      ignore_errors: yes
+
+
+    # 8. Remove kit directory
+    - name: Remove LDAP kit directory /data/AD_LDAP/ and its contents
+      file: path=/data/AD_LDAP/
+            state=absent
+      when: ( 'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_NN_MIGR_ML'] and
+              'VMAIL_ALL_ML' in group_names and inventory_hostname not in groups['VMAIL_EK_MIGR_ML'] or
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_NN_MIGR_PR'] and
+              'VMAIL_ALL_PR' in group_names and inventory_hostname not in groups['VMAIL_EK_MIGR_PR'] or 
+              'MMSC_ALL_Nodes_ML' in group_names or
+              'MMSC_ALL_Nodes_PR' in group_names  )
+      ignore_errors: yes

@@ -1,0 +1,17 @@
+# ansible_test_fact.yml - N.J.Holmes November 2017
+#
+#
+# version 1.0
+#
+---
+- hosts:  MMSC_NN_MMSC_ML
+  remote_user: root
+  gather_facts: True
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+
+  tasks:
+
+    - name: print ansible_local
+      debug: var=ansible_local
+        

@@ -1,0 +1,37 @@
+# ansible_spot_checks_MMSC.yml - N.J.Holmes June 2018
+#
+# Perform spot checks on MMSC nodes
+#
+# version 1.0   - June 2018
+#
+#
+---
+- hosts:  MMSC_EK_Nodes_ML
+  remote_user: root
+  gather_facts: true
+  vars:
+    date: "{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+    device: "{{hostvars[inventory_hostname].dev}}"
+    subnet: "{{ inventory_hostname.split('.')[2]  }}"
+    date1: "{{ lookup('pipe', 'date +%Y_%m/%d/%H') }}"
+
+
+  tasks:
+
+    # 1. Execute mmsc script on target server
+    - name: Run scripts on the mmsc nodes (MMSC, mStore, Cassandra, Swift, mReport and LI)
+      script: /data/ansible/playbooks/spotchecks/{{ script }}
+      register: result
+      changed_when: False
+      failed_when: "'FAILED' in result.stderr"
+      ignore_errors: True
+
+
+    #- debug: var=result.stdout_lines  
+    
+    # 6. Fetch the script output
+    - name: copy content
+      local_action: copy content="{{ result.stdout }}" dest="/data/ansible/playbooks/logs/mmsc_{{ arch }}-{{ date }}-{{ ansible_env.SSH_CONNECTION.split(' ')[2] }}.log"
+#      with_items:
+#        - result
+
